@@ -1,0 +1,61 @@
+from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
+import os
+import base64
+import json
+
+app = Flask(__name__)
+CORS(app)
+
+# Konfigurasi
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max
+app.config['UPLOAD_FOLDER'] = 'uploads'
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+@app.route('/')
+def index():
+    """Halaman utama"""
+    return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload_video():
+    """Endpoint untuk upload video"""
+    try:
+        if 'video' not in request.files:
+            return jsonify({'error': 'Tidak ada file video'}), 400
+        
+        file = request.files['video']
+        if file.filename == '':
+            return jsonify({'error': 'File tidak dipilih'}), 400
+        
+        # Simpan file
+        filename = file.filename
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        
+        return jsonify({
+            'success': True,
+            'filename': filename,
+            'message': 'Video berhasil diupload'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/analyze', methods=['POST'])
+def analyze():
+    """Endpoint untuk analisis (diproses di client-side dengan MediaPipe)"""
+    # Karena MediaPipe berjalan di client-side,
+    # endpoint ini hanya untuk menerima hasil analisis dari client
+    try:
+        data = request.json
+        # Di sini bisa simpan hasil ke database jika diperlukan
+        return jsonify({
+            'success': True,
+            'message': 'Data berhasil diterima'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=8000)

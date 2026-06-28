@@ -1,0 +1,141 @@
+/* ==========================================
+   STYLE UNTUK APLIKASI ANALISIS POSE
+   ========================================== */
+
+.gradient-bg {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.card-hover {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card-hover:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+}
+
+.result-card {
+    background: rgba(255,255,255,0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.2);
+}
+
+.category-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.category-1 { 
+    background: #10b981; 
+    color: white; 
+}
+
+.category-2 { 
+    background: #f59e0b; 
+    color: white; 
+}
+
+.category-3 { 
+    background: #f97316; 
+    color: white; 
+}
+
+.category-4 { 
+    background: #ef4444; 
+    color: white; 
+}
+
+.loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #667eea;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.video-container {
+    position: relative;
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+#video, #output {
+    width: 100%;
+    border-radius: 12px;
+}
+
+#output {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.tab-button {
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.tab-button.active {
+    background: #667eea;
+    color: white;
+}
+
+.tab-button.inactive {
+    background: #e5e7eb;
+    color: #4b5563;
+}
+
+.tab-button.inactive:hover {
+    background: #d1d5db;
+}
+
+#drop-zone {
+    border: 2px dashed #d1d5db;
+    border-radius: 12px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#drop-zone:hover {
+    border-color: #667eea;
+    background: #f3f4f6;
+}
+
+#drop-zone.dragover {
+    border-color: #667eea;
+    background: #ede9fe;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #667eea;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #764ba2;
+}

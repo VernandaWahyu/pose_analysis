@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Analisis Pose Gerakan</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
+    <!-- MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        .result-card {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .category-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        .category-1 { background: #10b981; color: white; }
+        .category-2 { background: #f59e0b; color: white; }
+        .category-3 { background: #f97316; color: white; }
+        .category-4 { background: #ef4444; color: white; }
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin: 0 auto;
+        }
+        #video, #output {
+            width: 100%;
+            border-radius: 12px;
+        }
+        #output {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .tab-button {
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            font-size: 14px;
+        }
+        .tab-button.active {
+            background: #667eea;
+            color: white;
+        }
+        .tab-button.inactive {
+            background: #e5e7eb;
+            color: #4b5563;
+        }
+        .tab-button.inactive:hover {
+            background: #d1d5db;
+        }
+        #drop-zone {
+            border: 2px dashed #d1d5db;
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        #drop-zone:hover {
+            border-color: #667eea;
+            background: #f3f4f6;
+        }
+        #drop-zone.dragover {
+            border-color: #667eea;
+            background: #ede9fe;
+        }
+        .btn-primary {
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-green {
+            background: #10b981;
+            color: white;
+        }
+        .btn-green:hover:not(:disabled) {
+            background: #059669;
+        }
+        .btn-gray {
+            background: #6b7280;
+            color: white;
+        }
+        .btn-gray:hover {
+            background: #4b5563;
+        }
+        .upload-btn-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .upload-btn-wrapper input[type=file] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .result-value {
+            font-weight: 700;
+            color: #1f2937;
+        }
+        .result-label {
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+    <!-- Header -->
+    <header class="gradient-bg text-white py-6 shadow-lg">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold">
+                        <i class="fas fa-robot mr-3"></i>
+                        Analisis Pose Gerakan
+                    </h1>
+                    <p class="text-white/80 mt-1">Upload video untuk analisis gerakan tubuh secara real-time</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-microchip text-2xl"></i>
+                    <span class="text-sm font-medium">MediaPipe Pose</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <div class="grid lg:grid-cols-3 gap-6">
+
+            <!-- Left Column -->
+            <div class="lg:col-span-2 space-y-6">
+
+                <!-- Upload Section -->
+                <div class="bg-white rounded-xl shadow-lg p-6 card-hover">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">
+                        <i class="fas fa-upload mr-2 text-purple-600"></i>
+                        Upload Video
+                    </h2>
+                    
+                    <div class="mb-4">
+                        <div class="upload-btn-wrapper">
+                            <button class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg w-full">
+                                <i class="fas fa-cloud-upload-alt mr-2"></i>
+                                Pilih File Video
+                            </button>
+                            <input type="file" id="videoInput" accept="video/*" />
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2">Format: MP4, WebM, MOV, AVI</p>
+                    </div>
+                    
+                    <div id="drop-zone" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-purple-500 transition-colors">
+                        <i class="fas fa-arrow-down text-3xl text-gray-400 mb-2 block"></i>
+                        <p class="text-gray-500">atau drag & drop video di sini</p>
+                    </div>
+                    
+                    <div id="fileInfo" class="mt-3 hidden">
+                        <div class="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-3">
+                            <div class="flex items-center gap-3">
+                                <i class="fas fa-file-video text-2xl text-green-600"></i>
+                                <div>
+                                    <p id="fileName" class="font-medium text-gray-800"></p>
+                                    <p id="fileSize" class="text-sm text-gray-500"></p>
+                                </div>
+                            </div>
+                            <button id="removeFile" class="text-red-500 hover:text-red-700 px-3 py-1">
+                                <i class="fas fa-times"></i> Hapus
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Video Display -->
+                <div class="bg-white rounded-xl shadow-lg p-6 card-hover">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-xl font-bold text-gray-800">
+                            <i class="fas fa-video mr-2 text-purple-600"></i>
+                            Preview
+                        </h2>
+                        <div class="flex gap-2">
+                            <button id="startBtn" class="btn-primary btn-green" disabled>
+                                <i class="fas fa-play mr-1"></i> Mulai Analisis
+                            </button>
+                            <button id="resetBtn" class="btn-primary btn-gray">
+                                <i class="fas fa-undo mr-1"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="video-container">
+                        <video id="video" class="bg-gray-900" playsinline></video>
+                        <canvas id="output" class="bg-transparent"></canvas>
+                    </div>
+                    
+                    <div id="status" class="mt-3 text-center text-sm text-gray-500">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Upload video untuk memulai analisis
+                    </div>
+                    
+                    <div id="progressSection" class="mt-3 hidden">
+                        <div class="flex items-center gap-4">
+                            <div class="loading-spinner"></div>
+                            <div class="flex-1">
+                                <div class="text-sm font-medium text-gray-700">Menganalisis video...</div>
+                                <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
+                                    <div id="progressBar" class="bg-purple-600 h-2 rounded-full transition-all" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            <span id="progressText" class="text-sm font-medium text-gray-600">0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Results -->
+            <div class="lg:col-span-1 space-y-6">
+                <div class="bg-white rounded-xl shadow-lg p-6 card-hover sticky top-6">
+                    <h2 class="text-xl font-bold text-gray-800 mb-4">
+                        <i class="fas fa-chart-bar mr-2 text-purple-600"></i>
+                        Hasil Analisis
+                    </h2>
+
+                    <!-- Tab Navigation -->
+                    <div class="flex gap-2 mb-4">
+                        <button class="tab-button active flex-1" data-tab="body">Body</button>
+                        <button class="tab-button inactive flex-1" data-tab="effort">Effort</button>
+                        <button class="tab-button inactive flex-1" data-tab="space">Space</button>
+                    </div>
+
+                    <!-- Tab Body -->
+                    <div id="tabBody" class="space-y-2">
+                        <div class="result-card rounded-lg p-2 bg-gray-50">
+                            <div class="flex justify-between items-center">
+                                <span class="result-label">Mean Knee Angle</span>
+                                <span id="meanKneeAngle" class="result-value">-</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="result-label">Kategori</span>
+                                <span id="kneeCategory" class="category-badge category-1">-</span>
+                            </div>
+                        </div>
+                        <div class="result-card rounded-lg p-2 bg-gray-50">
+                            <div class="flex justify-between items-center">
+                                <span class="result-label">Mean Foot Lift</span>
+                                <span id="meanFootLift" class="result-value">-</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="result-label">Kategori</span>
+                                <span id="footCategory" class="category-badge category-1">-</span>
+                            </div>
+                        </div>
+                        <div class="result-card rounded-lg p-2 bg-gray-50">
+                            <div class="flex justify-between items-center">
+                                <span class="result-label">Max Foot Lift</span>
+                                <span id="maxFootLift" class="result-value">-</span>
+                            </div>
+                        </div>
+                        <div class="result-card rounded-lg p-2 bg-gray-50">
+                            <div class="flex justify-between items-center">
+                                <span class="result-label">Mean Elbow Angle</span>
+                                <span id="meanElbowAngle" class="result-value">-</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="result-label">Kategori</span>
+                                <span id="elbowCategory" class="category-badge category-1">-</span>
+                            </div>
+                        </div>
+                        <div class="result-card rounded-lg p-2 bg-gray-50">
+                            <div class="flex justify-between items-center">
+                                <span class="result-label">Mean Arm Lift</span>
+                                <span id="meanArmLift" class="result-value">-</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="result-label">Kategori</span>
+                                <span id="armCategory" class="category-badge category-1">-</span>
+                            </div>
+                        </div>
+                        <div class="result-card rounded-lg p-2 bg-gray-50">
+                            <div class="flex justify-between items-center">
+                                <span class="result-label">Max Arm Lift</span>
+                                <span id="maxArmLift" class="result-value">-</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="result-label">Kategori</span>
+                                <span id="maxArmCategory" class="category-badge category-1">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab Effort -->
+                    <div id="tabEffort" class="space-y-2 hidden">
+                        <div class="result-card rounded-lg p-2 bg-gray-50">
+                            <div class="flex justify-between items-center">
+                                <span class="result-label">Velocity</span>
+                                <span id="velocity" class="result-value">-</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="result-label">Kategori</span>
+                                <span id="velocityCategory" class="category-badge category-1">-</span>
+                            </div>
+                        </div>
+                        <div class="result-card rounded-lg p-2 bg-gray-50">
+                            <div class="flex justify-between items-center">
+                                <span class="result-label">Acceleration</span>
+                                <span id="acceleration" class="result-value">-</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="result-label">Kategori</span>
+                                <span id="accelerationCategory" class="category-badge category-1">-</span>
+                            </div>
+                        </div>
+                        <div class="result-card rounded-lg p-2 bg-gray-50">
+                            <div class="flex justify-between items-center">
+                                <span class="result-label">Motion Energy</span>
+                                <span id="motionEnergy" class="result-value">-</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="result-label">Kategori</span>
+                                <span id="energyCategory" class="category-badge category-1">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab Space -->
+                    <div id="tabSpace" class="space-y-2 hidden">
+                        <div class="result-card rounded-lg p-2 bg-gray-50">
+                            <div class="flex justify-between items-center">
+                                <span class="result-label">Mean Movement</span>
+                                <span id="meanMovement" class="result-value">-</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="result-label">Kategori</span>
+                                <span id="movementCategory" class="category-badge category-1">-</span>
+                            </div>
+                        </div>
+                        <div class="result-card rounded-lg p-2 bg-gray-50">
+                            <div class="flex justify-between items-center">
+                                <span class="result-label">Max Movement</span>
+                                <span id="maxMovement" class="result-value">-</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="result-label">Kategori</span>
+                                <span id="maxMovementCategory" class="category-badge category-1">-</span>
+                            </div>
+                        </div>
+                        <div class="result-card rounded-lg p-2 bg-gray-50">
+                            <div class="flex justify-between items-center">
+                                <span class="result-label">Direction Consistency</span>
+                                <span id="directionConsistency" class="result-value">-</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="result-label">Kategori</span>
+                                <span id="directionCategory" class="category-badge category-1">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="noResultMessage" class="text-center text-gray-400 py-8">
+                        <i class="fas fa-hourglass-half text-4xl mb-3 block"></i>
+                        <span>Belum ada data</span>
+                        <span class="text-sm block mt-1">Upload video dan mulai analisis</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 py-4 mt-8">
+        <div class="container mx-auto px-4 text-center text-gray-600 text-sm">
+            <i class="fas fa-code mr-2"></i>
+            Dibuat dengan MediaPipe Pose & Flask
+        </div>
+    </footer>
+
+    <!-- JavaScript Lengkap dengan Perhitungan -->
+    <script>
+    // ==========================================
+    // INISIALISASI
+    // ==========================================
+    console.log('Aplikasi Analisis Pose dimulai...');
+    
+    const video = document.getElementById('video');
+    const output = document.getElementById('output');
+    const canvasCtx = output.getContext('2d');
+    const videoInput = document.getElementById('videoInput');
+    const dropZone = document.getElementById('drop-zone');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const removeFile = document.getElementById('removeFile');
+    const startBtn = document.getElementById('startBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const statusDiv = document.getElementById('status');
+    const progressSection = document.getElementById('progressSection');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+
+    // ==========================================
+    // FUNGSI ANGLE - SAMA DENGAN PYTHON
+    // ==========================================
+    function calculateAngle(a, b, c) {
+        // a, b, c adalah object {x, y}
+        const ba = { x: a.x - b.x, y: a.y - b.y };
+        const bc = { x: c.x - b.x, y: c.y - b.y };
+        
+        const dot = ba.x * bc.x + ba.y * bc.y;
+        const mag = Math.sqrt(ba.x * ba.x + ba.y * ba.y) * 
+                    Math.sqrt(bc.x * bc.x + bc.y * bc.y);
+        
+        if (mag === 0) return 0;
+        
+        let cosAngle = dot / mag;
+        cosAngle = Math.max(-1, Math.min(1, cosAngle));
+        const angleRad = Math.acos(cosAngle);
+        return angleRad * (180 / Math.PI);
+    }
+
+    // ==========================================
+    // FUNGSI KATEGORI - SAMA DENGAN PYTHON
+    // ==========================================
+    function kategoriMeanKneeAngle(x) {
+        if (x <= 90) return 1;
+        if (x <= 120) return 2;
+        if (x <= 150) return 3;
+        return 4;
+    }
+
+    function kategoriMeanFootLift(x) {
+        if (x <= 75) return 1;
+        if (x <= 150) return 2;
+        if (x <= 225) return 3;
+        return 4;
+    }
+
+    function kategoriMeanElbowAngle(x) {
+        if (x <= 75) return 4;
+        if (x <= 110) return 3;
+        if (x <= 145) return 2;
+        return 1;
+    }
+
+    function kategoriMeanArmLift(x) {
+        if (x <= 62.5) return 4;
+        if (x <= 125) return 3;
+        if (x <= 187.5) return 2;
+        return 1;
+    }
+
+    function kategoriMaxArmLift(x) {
+        if (x <= 212.5) return 4;
+        if (x <= 255) return 3;
+        if (x <= 297.5) return 2;
+        return 1;
+    }
+
+    function kategoriVelocity(x) {
+        if (x <= 2.5) return 1;
+        if (x <= 5) return 2;
+        if (x <= 7.5) return 3;
+        return 4;
+    }
+
+    function kategoriAcceleration(x) {
+        if (x <= 0.25) return 1;
+        if (x <= 0.50) return 2;
+        if (x <= 0.75) return 3;
+        return 4;
+    }
+
+    function kategoriMotionEnergy(x) {
+        if (x <= 2.5) return 1;
+        if (x <= 5) return 2;
+        if (x <= 7.5) return 3;
+        return 4;
+    }
+
+    function kategoriMeanMovement(x) {
+        if (x <= 2.5) return 1;
+        if (x <= 5) return 2;
+        if (x <= 7.5) return 3;
+        return 4;
+    }
+
+    function kategoriMaxMovement(x) {
+        if (x <= 2.5) return 1;
+        if (x <= 5) return 2;
+        if (x <= 7.5) return 3;
+        return 4;
+    }
+
+    function kategoriDirectionConsistency(x) {
+        if (x <= 0.25) return 1;
+        if (x <= 0.50) return 2;
+        if (x <= 0.75) return 3;
+        return 4;
+    }
+
+    // ==========================================
+    // FUNGSI ANALISIS - SAMA DENGAN PYTHON
+    // ==========================================
+    function analyzePoseData(poseData) {
+        if (!poseData || poseData.length < 2) {
+            return null;
+        }
+
+        // Kumpulkan data dari semua frame
+        const leftKneeAngles = [];
+        const rightKneeAngles = [];
+        const leftElbowAngles = [];
+        const rightElbowAngles = [];
+        const hipPositions = [];
+        const leftAnkleY = [];
+        const rightAnkleY = [];
+        const leftWristY = [];
+        const rightWristY = [];
+        const leftHipX = [];
+        const rightHipX = [];
+        const leftHipY = [];
+        const rightHipY = [];
+
+        poseData.forEach((pose) => {
+            const landmarks = pose.landmarks;
+            if (!landmarks) return;
+
+            // Ambil koordinat (index MediaPipe)
+            const leftHip = landmarks[23];
+            const rightHip = landmarks[24];
+            const leftKnee = landmarks[25];
+            const rightKnee = landmarks[26];
+            const leftAnkle = landmarks[27];
+            const rightAnkle = landmarks[28];
+            const leftShoulder = landmarks[11];
+            const rightShoulder = landmarks[12];
+            const leftElbow = landmarks[13];
+            const rightElbow = landmarks[14];
+            const leftWrist = landmarks[15];
+            const rightWrist = landmarks[16];
+
+            if (!leftHip || !rightHip || !leftKnee || !rightKnee || 
+                !leftAnkle || !rightAnkle || !leftShoulder || !rightShoulder ||
+                !leftElbow || !rightElbow || !leftWrist || !rightWrist) return;
+
+            // Hitung angle knee
+            const leftKneeAngle = calculateAngle(
+                { x: leftHip.x, y: leftHip.y },
+                { x: leftKnee.x, y: leftKnee.y },
+                { x: leftAnkle.x, y: leftAnkle.y }
+            );
+            const rightKneeAngle = calculateAngle(
+                { x: rightHip.x, y: rightHip.y },
+                { x: rightKnee.x, y: rightKnee.y },
+                { x: rightAnkle.x, y: rightAnkle.y }
+            );
+
+            // Hitung angle elbow
+            const leftElbowAngle = calculateAngle(
+                { x: leftShoulder.x, y: leftShoulder.y },
+                { x: leftElbow.x, y: leftElbow.y },
+                { x: leftWrist.x, y: leftWrist.y }
+            );
+            const rightElbowAngle = calculateAngle(
+                { x: rightShoulder.x, y: rightShoulder.y },
+                { x: rightElbow.x, y: rightElbow.y },
+                { x: rightWrist.x, y: rightWrist.y }
+            );
+
+            leftKneeAngles.push(leftKneeAngle);
+            rightKneeAngles.push(rightKneeAngle);
+            leftElbowAngles.push(leftElbowAngle);
+            rightElbowAngles.push(rightElbowAngle);
+
+            // Hip center
+            const hipX = (leftHip.x + rightHip.x) / 2;
+            const hipY = (leftHip.y + rightHip.y) / 2;
+            hipPositions.push({ x: hipX, y: hipY });
+
+            // Ankle Y
+            leftAnkleY.push(leftAnkle.y);
+            rightAnkleY.push(rightAnkle.y);
+
+            // Wrist Y
+            leftWristY.push(leftWrist.y);
+            rightWristY.push(rightWrist.y);
+
+            // Hip X & Y
+            leftHipX.push(leftHip.x);
+            rightHipX.push(rightHip.x);
+            leftHipY.push(leftHip.y);
+            rightHipY.push(rightHip.y);
+        });
+
+        // ==========================================
+        // BODY SHAPE
+        // ==========================================
+        const allKneeAngles = [...leftKneeAngles, ...rightKneeAngles];
+        const meanKneeAngle = allKneeAngles.length > 0 ? 
+            allKneeAngles.reduce((a, b) => a + b, 0) / allKneeAngles.length : 0;
+
+        const allElbowAngles = [...leftElbowAngles, ...rightElbowAngles];
+        const meanElbowAngle = allElbowAngles.length > 0 ?
+            allElbowAngles.reduce((a, b) => a + b, 0) / allElbowAngles.length : 0;
+
+        // Foot Lift
+        const leftAnkleBaseline = Math.max(...leftAnkleY);
+        const rightAnkleBaseline = Math.max(...rightAnkleY);
+
+        const leftLifts = leftAnkleY.map(y => Math.max(0, leftAnkleBaseline - y));
+        const rightLifts = rightAnkleY.map(y => Math.max(0, rightAnkleBaseline - y));
+        const allLifts = [...leftLifts, ...rightLifts];
+        const meanFootLift = allLifts.length > 0 ? 
+            allLifts.reduce((a, b) => a + b, 0) / allLifts.length : 0;
+        const maxFootLift = allLifts.length > 0 ? Math.max(...allLifts) : 0;
+
+        // Arm Lift
+        const leftWristBaseline = Math.max(...leftWristY);
+        const rightWristBaseline = Math.max(...rightWristY);
+
+        const leftArmLifts = leftWristY.map(y => Math.max(0, leftWristBaseline - y));
+        const rightArmLifts = rightWristY.map(y => Math.max(0, rightWristBaseline - y));
+        const allArmLifts = [...leftArmLifts, ...rightArmLifts];
+        const meanArmLift = allArmLifts.length > 0 ?
+            allArmLifts.reduce((a, b) => a + b, 0) / allArmLifts.length : 0;
+        const maxArmLift = allArmLifts.length > 0 ? Math.max(...allArmLifts) : 0;
+
+        // ==========================================
+        // EFFORT
+        // ==========================================
+        const velocities = [];
+        for (let i = 1; i < hipPositions.length; i++) {
+            const dx = hipPositions[i].x - hipPositions[i-1].x;
+            const dy = hipPositions[i].y - hipPositions[i-1].y;
+            const d = Math.sqrt(dx*dx + dy*dy);
+            velocities.push(d);
+        }
+
+        const accelerations = [];
+        for (let i = 1; i < velocities.length; i++) {
+            accelerations.push(Math.abs(velocities[i] - velocities[i-1]));
+        }
+
+        const meanVelocity = velocities.length > 0 ?
+            velocities.reduce((a, b) => a + b, 0) / velocities.length : 0;
+        const meanAcceleration = accelerations.length > 0 ?
+            accelerations.reduce((a, b) => a + b, 0) / accelerations.length : 0;
+        const motionEnergy = velocities.length > 0 ?
+            velocities.reduce((a, b) => a + b * b, 0) / velocities.length : 0;
+
+        // ==========================================
+        // SPACE
+        // ==========================================
+        const meanMovement = meanVelocity;
+        const maxMovement = velocities.length > 0 ? Math.max(...velocities) : 0;
+
+        // Direction Consistency
+        const directions = [];
+        for (let i = 1; i < hipPositions.length; i++) {
+            const dx = hipPositions[i].x - hipPositions[i-1].x;
+            directions.push(dx);
+        }
+
+        let directionChanges = 0;
+        const THRESHOLD = 0.03; // Dinormalisasi karena koordinat 0-1
+
+        for (let i = 1; i < directions.length; i++) {
+            const prev = directions[i-1];
+            const curr = directions[i];
+            if (Math.abs(prev) > THRESHOLD && Math.abs(curr) > THRESHOLD) {
+                if (Math.sign(prev) !== Math.sign(curr)) {
+                    directionChanges++;
+                }
+            }
+        }
+
+        const directionConsistency = directions.length > 0 ?
+            1 - (directionChanges / directions.length) : 0;
+
+        // ==========================================
+        // KATEGORI
+        // ==========================================
+        const kneeCat = kategoriMeanKneeAngle(meanKneeAngle);
+        const footCat = kategoriMeanFootLift(meanFootLift);
+        const elbowCat = kategoriMeanElbowAngle(meanElbowAngle);
+        const armCat = kategoriMeanArmLift(meanArmLift);
+        const maxArmCat = kategoriMaxArmLift(maxArmLift);
+        const velocityCat = kategoriVelocity(meanVelocity);
+        const accelerationCat = kategoriAcceleration(meanAcceleration);
+        const energyCat = kategoriMotionEnergy(motionEnergy);
+        const movementCat = kategoriMeanMovement(meanMovement);
+        const maxMovementCat = kategoriMaxMovement(maxMovement);
+        const directionCat = kategoriDirectionConsistency(directionConsistency);
+
+        return {
+            meanKneeAngle,
+            meanFootLift,
+            maxFootLift,
+            meanElbowAngle,
+            meanArmLift,
+            maxArmLift,
+            meanVelocity,
+            meanAcceleration,
+            motionEnergy,
+            meanMovement,
+            maxMovement,
+            directionConsistency,
+            kneeCat,
+            footCat,
+            elbowCat,
+            armCat,
+            maxArmCat,
+            velocityCat,
+            accelerationCat,
+            energyCat,
+            movementCat,
+            maxMovementCat,
+            directionCat
+        };
+    }
+
+    // ==========================================
+    // UPDATE UI
+    // ==========================================
+    function updateResults(result) {
+        if (!result) {
+            document.getElementById('noResultMessage').classList.remove('hidden');
+            return;
+        }
+        document.getElementById('noResultMessage').classList.add('hidden');
+
+        // Body Shape
+        document.getElementById('meanKneeAngle').textContent = result.meanKneeAngle.toFixed(2) + '°';
+        document.getElementById('kneeCategory').textContent = `Kategori ${result.kneeCat}`;
+        document.getElementById('kneeCategory').className = `category-badge category-${result.kneeCat}`;
+
+        document.getElementById('meanFootLift').textContent = result.meanFootLift.toFixed(2) + ' px';
+        document.getElementById('footCategory').textContent = `Kategori ${result.footCat}`;
+        document.getElementById('footCategory').className = `category-badge category-${result.footCat}`;
+
+        document.getElementById('maxFootLift').textContent = result.maxFootLift.toFixed(2) + ' px';
+
+        document.getElementById('meanElbowAngle').textContent = result.meanElbowAngle.toFixed(2) + '°';
+        document.getElementById('elbowCategory').textContent = `Kategori ${result.elbowCat}`;
+        document.getElementById('elbowCategory').className = `category-badge category-${result.elbowCat}`;
+
+        document.getElementById('meanArmLift').textContent = result.meanArmLift.toFixed(2) + ' px';
+        document.getElementById('armCategory').textContent = `Kategori ${result.armCat}`;
+        document.getElementById('armCategory').className = `category-badge category-${result.armCat}`;
+
+        document.getElementById('maxArmLift').textContent = result.maxArmLift.toFixed(2) + ' px';
+        document.getElementById('maxArmCategory').textContent = `Kategori ${result.maxArmCat}`;
+        document.getElementById('maxArmCategory').className = `category-badge category-${result.maxArmCat}`;
+
+        // Effort
+        document.getElementById('velocity').textContent = result.meanVelocity.toFixed(4) + ' px/frame';
+        document.getElementById('velocityCategory').textContent = `Kategori ${result.velocityCat}`;
+        document.getElementById('velocityCategory').className = `category-badge category-${result.velocityCat}`;
+
+        document.getElementById('acceleration').textContent = result.meanAcceleration.toFixed(4) + ' px/frame²';
+        document.getElementById('accelerationCategory').textContent = `Kategori ${result.accelerationCat}`;
+        document.getElementById('accelerationCategory').className = `category-badge category-${result.accelerationCat}`;
+
+        document.getElementById('motionEnergy').textContent = result.motionEnergy.toFixed(4) + ' px²/frame²';
+        document.getElementById('energyCategory').textContent = `Kategori ${result.energyCat}`;
+        document.getElementById('energyCategory').className = `category-badge category-${result.energyCat}`;
+
+        // Space
+        document.getElementById('meanMovement').textContent = result.meanMovement.toFixed(4) + ' px/frame';
+        document.getElementById('movementCategory').textContent = `Kategori ${result.movementCat}`;
+        document.getElementById('movementCategory').className = `category-badge category-${result.movementCat}`;
+
+        document.getElementById('maxMovement').textContent = result.maxMovement.toFixed(4) + ' px/frame';
+        document.getElementById('maxMovementCategory').textContent = `Kategori ${result.maxMovementCat}`;
+        document.getElementById('maxMovementCategory').className = `category-badge category-${result.maxMovementCat}`;
+
+        document.getElementById('directionConsistency').textContent = result.directionConsistency.toFixed(4);
+        document.getElementById('directionCategory').textContent = `Kategori ${result.directionCat}`;
+        document.getElementById('directionCategory').className = `category-badge category-${result.directionCat}`;
+    }
+
+    // ==========================================
+    // EVENT UPLOAD
+    // ==========================================
+    videoInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            handleFile(file);
+        }
+    });
+
+    dropZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        this.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            videoInput.files = files;
+            handleFile(files[0]);
+        }
+    });
+
+    removeFile.addEventListener('click', function(e) {
+        e.stopPropagation();
+        videoInput.value = '';
+        fileInfo.classList.add('hidden');
+        startBtn.disabled = true;
+        resetAll();
+    });
+
+    startBtn.addEventListener('click', startProcessing);
+    resetBtn.addEventListener('click', resetAll);
+
+    function handleFile(file) {
+        const validExt = ['.mp4', '.webm', '.mov', '.avi', '.mkv'];
+        const ext = '.' + file.name.split('.').pop().toLowerCase();
+        
+        if (!validExt.includes(ext)) {
+            alert('Format video tidak didukung. Gunakan MP4, WebM, MOV, atau AVI.');
+            return;
+        }
+        
+        fileInfo.classList.remove('hidden');
+        fileName.textContent = file.name;
+        fileSize.textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+        startBtn.disabled = false;
+        statusDiv.innerHTML = '<i class="fas fa-check-circle text-green-500 mr-1"></i> Video siap: ' + file.name;
+        resetAll();
+    }
+
+    // ==========================================
+    // FUNGSI RESET
+    // ==========================================
+    function resetAll() {
+        if (video) {
+            video.pause();
+            video.src = '';
+        }
+        progressSection.classList.add('hidden');
+        canvasCtx.clearRect(0, 0, output.width, output.height);
+        
+        document.querySelectorAll('.result-value').forEach(el => el.textContent = '-');
+        document.querySelectorAll('.category-badge').forEach(el => {
+            el.textContent = '-';
+            el.className = 'category-badge category-1';
+        });
+        document.getElementById('noResultMessage').classList.remove('hidden');
+        statusDiv.innerHTML = '<i class="fas fa-info-circle mr-1"></i> Upload video untuk memulai analisis';
+    }
+
+    // ==========================================
+    // FUNGSI DRAW
+    // ==========================================
+    function drawPose(ctx, landmarks) {
+        const connections = [
+            [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+            [23, 24], [23, 25], [25, 27], [24, 26], [26, 28],
+            [11, 23], [12, 24]
+        ];
+        
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth = 2;
+        
+        connections.forEach(([i, j]) => {
+            const a = landmarks[i];
+            const b = landmarks[j];
+            if (a && b && a.visibility > 0.5 && b.visibility > 0.5) {
+                ctx.beginPath();
+                ctx.moveTo(a.x * output.width, a.y * output.height);
+                ctx.lineTo(b.x * output.width, b.y * output.height);
+                ctx.stroke();
+            }
+        });
+        
+        landmarks.forEach(landmark => {
+            if (landmark.visibility > 0.5) {
+                ctx.beginPath();
+                ctx.arc(landmark.x * output.width, landmark.y * output.height, 4, 0, 2 * Math.PI);
+                ctx.fillStyle = '#ff0080';
+                ctx.fill();
+            }
+        });
+    }
+
+    // ==========================================
+    // FUNGSI START PROCESSING
+    // ==========================================
+    async function startProcessing() {
+        const file = videoInput.files[0];
+        if (!file) {
+            alert('Silakan upload video terlebih dahulu!');
+            return;
+        }
+        
+        console.log('Memulai analisis...');
+        
+        progressSection.classList.remove('hidden');
+        progressBar.style.width = '0%';
+        progressText.textContent = '0%';
+        statusDiv.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Memproses video...';
+        startBtn.disabled = true;
+        
+        // Data storage
+        const poseData = [];
+        let frameCount = 0;
+        let isRunning = true;
+        
+        try {
+            // Setup MediaPipe
+            const pose = new Pose({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+                }
+            });
+            
+            pose.setOptions({
+                modelComplexity: 1,
+                smoothLandmarks: true,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+            
+            pose.onResults((results) => {
+                if (results.poseLandmarks) {
+                    poseData.push({
+                        landmarks: results.poseLandmarks,
+                        timestamp: Date.now()
+                    });
+                    
+                    frameCount++;
+                    const progress = Math.min((frameCount / 100) * 100, 100);
+                    progressBar.style.width = progress + '%';
+                    progressText.textContent = Math.round(progress) + '%';
+                    
+                    canvasCtx.clearRect(0, 0, output.width, output.height);
+                    drawPose(canvasCtx, results.poseLandmarks);
+                }
+            });
+            
+            // Load video
+            const url = URL.createObjectURL(file);
+            video.src = url;
+            video.load();
+            
+            await new Promise((resolve) => {
+                video.onloadedmetadata = () => resolve();
+            });
+            
+            await video.play();
+            
+            output.width = video.videoWidth || 640;
+            output.height = video.videoHeight || 480;
+            
+            statusDiv.innerHTML = '<i class="fas fa-play mr-1"></i> Menganalisis...';
+            
+            // Process frames dengan interval yang lebih lambat agar tidak overload
+            let lastTime = 0;
+            const interval = 1000 / 15; // 15 fps untuk performa lebih baik
+            
+            async function processFrame() {
+                if (!isRunning) return;
+                
+                const now = Date.now();
+                if (now - lastTime >= interval) {
+                    if (!video.paused && !video.ended) {
+                        try {
+                            await pose.send({ image: video });
+                            lastTime = now;
+                        } catch (err) {
+                            console.error('Frame error:', err);
+                        }
+                    }
+                }
+                
+                if (!video.ended && isRunning) {
+                    requestAnimationFrame(processFrame);
+                } else {
+                    isRunning = false;
+                    startBtn.disabled = false;
+                    statusDiv.innerHTML = '<i class="fas fa-check-circle text-green-500 mr-1"></i> Analisis selesai!';
+                    progressBar.style.width = '100%';
+                    progressText.textContent = '100%';
+                    
+                    console.log(`Total frame: ${poseData.length}`);
+                    
+                    // Analisis data
+                    const result = analyzePoseData(poseData);
+                    updateResults(result);
+                    
+                    if (result) {
+                        console.log('Hasil analisis:', result);
+                    }
+                }
+            }
+            
+            requestAnimationFrame(processFrame);
+            
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error: ' + error.message);
+            statusDiv.innerHTML = '<i class="fas fa-exclamation-circle text-red-500 mr-1"></i> Error: ' + error.message;
+            startBtn.disabled = false;
+            isRunning = false;
+        }
+    }
+
+    // ==========================================
+    // TAB SWITCHING
+    // ==========================================
+    document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.tab-button').forEach(b => {
+                b.className = 'tab-button inactive flex-1';
+            });
+            this.className = 'tab-button active flex-1';
+            
+            const tab = this.dataset.tab;
+            document.getElementById('tabBody').classList.add('hidden');
+            document.getElementById('tabEffort').classList.add('hidden');
+            document.getElementById('tabSpace').classList.add('hidden');
+            document.getElementById(`tab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.remove('hidden');
+        });
+    });
+
+    console.log('Aplikasi siap digunakan!');
+    </script>
+</body>
+</html>
